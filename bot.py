@@ -21,27 +21,27 @@ def scrape_store(name, url):
         res = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(res.text, "html.parser")
 
-        items = []
+        text = soup.get_text(" ", strip=True).lower()
 
-        for a in soup.select("a"):
-            text = a.get_text(strip=True)
+        if "needoh" in text:
+            return [f"{name}: possible squishy found → {url}"]
 
-            if text and "needoh" in text.lower():
-                link = a.get("href")
+        return []
 
-                if link and link.startswith("/"):
-                    link = url.split("/")[0] + "//" + url.split("/")[2] + link
+    except Exception:
+        return [f"{name}: error checking site"]
 
-                items.append(f"{name}: {text}\n{link}")
-
-        return items[:2]
-
-    except Exception as e:
-        return [f"{name} error"]
 
 def send_to_discord(results):
-    message = "🚨 Squishy Check:\n\n" + "\n\n".join(results)
-    requests.post(WEBHOOK_URL, json={"content": message[:2000]})
+    if results:
+        message = "🚨 Squishy Check:\n\n" + "\n\n".join(results)
+    else:
+        message = "🚨 Squishy Check:\n\nNo squishies found right now."
+
+    requests.post(
+        WEBHOOK_URL,
+        json={"content": message[:2000]}
+    )
 
 
 if __name__ == "__main__":
@@ -49,6 +49,9 @@ if __name__ == "__main__":
 
     for name, url in SEARCHES:
         results = scrape_store(name, url)
+        print(name, results)  # debug in GitHub Actions logs
         all_results.extend(results)
+
+    print("FINAL RESULTS:", all_results)
 
     send_to_discord(all_results)
