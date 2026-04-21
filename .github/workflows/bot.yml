@@ -5,19 +5,33 @@ on:
   schedule:
     - cron: "0 * * * *"
 
+# Prevent overlapping runs (important for scheduled bots)
+concurrency:
+  group: squishy-bot
+  cancel-in-progress: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    # Opt into Node 24 early to avoid future warnings
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-      - uses: actions/setup-python@v5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"   # speeds up installs
 
-      - run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
-      - run: python bot.py
+      - name: Run bot
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python bot.p
