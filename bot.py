@@ -5,97 +5,104 @@ from bs4 import BeautifulSoup
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    "User-Agent": "Mozilla/5.0"
 }
 
 SEARCHES = [
+    ("Needoh Tracker", "https://www.needohtracker.com/search"),
     ("Walmart", "https://www.walmart.com/search?q=needoh"),
     ("Target", "https://www.target.com/s?searchTerm=needoh"),
     ("Five Below", "https://www.fivebelow.com/search?q=needoh"),
     ("Walgreens", "https://www.walgreens.com/search/results.jsp?Ntt=needoh")
 ]
 
+KEYWORDS = [
+    "needoh",
+    "nee doh",
+    "squishy"
+]
+
+
+def matches_keywords(text):
+    text = text.lower()
+    return any(k in text for k in KEYWORDS)
+
+
+def make_absolute(base_url, href):
+    if not href:
+        return base_url
+
+    if href.startswith("http"):
+        return href
+
+    if href.startswith("/"):
+        domain = base_url.split("//")[0] + "//" + base_url.split("//")[1].split("/")[0]
+        return domain + href
+
+    return base_url
+
 
 def fetch_store(name, url):
     try:
-        r = requests.get(url, headers=HEADERS, timeout=12)
+        r = requests.get(url, headers=HEADERS, timeout=15)
+
+        print(f"{name} status:", r.status_code)
+
         soup = BeautifulSoup(r.text, "html.parser")
 
         found = []
 
-        # Try to extract product-like entries
-        for tag in soup.find_all(["a", "h2", "h3", "span"]):
-            text = tag.get_text(" ", strip=True)
+        # Only inspect links (product pages are usually links)
+        for a in soup.find_all("a", href=True):
+            text = a.get_text(" ", strip=True)
 
             if not text:
                 continue
 
-            if "needoh" in text.lower():
-                link = tag.get("href")
-
-                if link and link.startswith("/"):
-                    if "walmart" in url:
-                        base = "https://www.walmart.com"
-                    elif "target" in url:
-                        base = "https://www.target.com"
-                    elif "fivebelow" in url:
-                        base = "https://www.fivebelow.com"
-                    elif "walgreens" in url:
-                        base = "https://www.walgreens.com"
-                    else:
-                        base = url.split("//")[0] + "//" + url.split("//")[1].split("/")[0]
-
-                    link = base + link
+            if matches_keywords(text):
+                href = make_absolute(url, a["href"])
 
                 found.append({
                     "store": name,
                     "title": text,
-                    "url": link if link else url
+                    "url": href
                 })
 
-        # remove duplicates
+        # Remove duplicates
         unique = []
         seen = set()
 
         for item in found:
             key = item["title"] + item["url"]
+
             if key not in seen:
                 seen.add(key)
                 unique.append(item)
 
-        return unique[:3]
+        return unique[:5]
 
     except Exception as e:
-        return [{
-            "store": name,
-            "title": f"Error checking store: {str(e)[:40]}",
-            "url": url
-        }]
+        print(f"{name} error:", e)
+        return []
 
 
 def send_discord(results):
     if not results:
-        payload = {
-            "content": "🔍 Squishy Check: No results found right now."
-        }
-        requests.post(WEBHOOK_URL, json=payload)
-        return
+        message = "🔍 Squishy Check: No new results found."
+    else:
+        message = "🚨 **SQUISHY ALERTS FOUND** 🚨\n\n"
 
-    embeds = []
+        for r in results:
+            message += (
+                f"🏪 {r['store']}\n"
+                f"🧸 {r['title']}\n"
+                f"🔗 {r['url']}\n\n"
+            )
 
-    for r in results[:10]:
-        embeds.append({
-            "title": r["store"],
-            "description": r["title"],
-            "url": r["url"]
-        })
-
-    payload = {
-        "content": "🚨 **SQUISHY ALERT (PRODUCTION SCAN)** 🚨",
-        "embeds": embeds
-    }
-
-    requests.post(WEBHOOK_URL, json=payload)
+    requests.post(
+        WEBHOOK_URL,
+        json={"content": message[:2000]}
+    )
 
 
 if __name__ == "__main__":
@@ -103,24 +110,11 @@ if __name__ == "__main__":
 
     for name, url in SEARCHES:
         results = fetch_store(name, url)
-        print(name, results)
 
-        for r in results:
-            if "error" not in r["title"].lower():
-                all_results.append(r)
+        print(name, "found:", len(results))
 
-    # remove duplicates across stores
-    final = []
-    seen = set()
+        all_results.extend(results)
 
-    for r in all_results:
-        key = r["title"] + r["url"]
-        if key not in seen:
-            seen.add(key)
-            final.append(r)
+    print("TOTAL RESULTS:", len(all_results))
 
-    print("FINAL:", final)
-
-    send_discord(final)
-
-
+    send_discord(all_results)
