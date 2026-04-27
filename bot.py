@@ -8,9 +8,11 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+ZIP_CODE = "23320"
+
 SEARCHES = [
-    ("Needoh Tracker", "https://www.needohtracker.com/search"),
-    ("Walmart", "https://www.walmart.com/search?q=needoh"),
+    ("Needoh Tracker", f"https://www.needohtracker.com/search?zip={ZIP_CODE}"),
+    ("Walmart", f"https://www.walmart.com/search?q=needoh&zip={ZIP_CODE}"),
     ("Target", "https://www.target.com/s?searchTerm=needoh"),
     ("Five Below", "https://www.fivebelow.com/search?q=needoh"),
     ("Walgreens", "https://www.walgreens.com/search/results.jsp?Ntt=needoh")
@@ -25,7 +27,7 @@ KEYWORDS = [
 
 def matches_keywords(text):
     text = text.lower()
-    return any(k in text for k in KEYWORDS)
+    return any(keyword in text for keyword in KEYWORDS)
 
 
 def make_absolute(base_url, href):
@@ -46,13 +48,16 @@ def fetch_store(name, url):
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
 
-        print(f"{name} status:", r.status_code)
+        print(f"{name} status: {r.status_code}")
+
+        if r.status_code != 200:
+            return []
 
         soup = BeautifulSoup(r.text, "html.parser")
 
         found = []
 
-        # Only inspect links (product pages are usually links)
+        # Product pages are usually links
         for a in soup.find_all("a", href=True):
             text = a.get_text(" ", strip=True)
 
@@ -82,15 +87,15 @@ def fetch_store(name, url):
         return unique[:5]
 
     except Exception as e:
-        print(f"{name} error:", e)
+        print(f"{name} error: {e}")
         return []
 
 
 def send_discord(results):
     if not results:
-        message = "🔍 Squishy Check: No new results found."
+        message = "🔍 Squishy Check: No NeeDoh results found right now."
     else:
-        message = "🚨 **SQUISHY ALERTS FOUND** 🚨\n\n"
+        message = "🚨 **NEEDOH ALERTS FOUND** 🚨\n\n"
 
         for r in results:
             message += (
@@ -111,7 +116,7 @@ if __name__ == "__main__":
     for name, url in SEARCHES:
         results = fetch_store(name, url)
 
-        print(name, "found:", len(results))
+        print(f"{name} found: {len(results)}")
 
         all_results.extend(results)
 
