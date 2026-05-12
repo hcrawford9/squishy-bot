@@ -16,7 +16,8 @@ SEARCHES = [
     ("Target", "https://www.target.com/s?searchTerm=needoh"),
     ("Five Below", "https://www.fivebelow.com/search?q=needoh"),
     ("Walgreens", "https://www.walgreens.com/search/results.jsp?Ntt=needoh")
-]
+    ("The Playful Educator", "https://theplayfuleducator.shop/search?q=needoh")
+] 
 
 KEYWORDS = [
     "needoh",
